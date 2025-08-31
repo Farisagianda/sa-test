@@ -28,15 +28,25 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build for scan
-        working-directory: ${{ env.CONTEXT }}
-        run: |
-          docker buildx build --load -f Dockerfile-hardened \
-            -t "$IMAGE" .
+      - name: Build (local, cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.CONTEXT }}/Dockerfile-hardened
+          tags: ${{ env.IMAGE }}
+          load: true
+          cache-from: type=gha,scope=sa-test
+          cache-to: type=gha,mode=max,scope=sa-test
 
-      - name: Make reports dir
-        working-directory: ${{ env.CONTEXT }}
-        run: mkdir -p reports
+      - name: Trivy scan (gate + SARIF)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE }}
+          format: sarif
+          output: ${{ env.CONTEXT }}/reports/trivy.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
 
       - name: Generate SBOM (Syft)
         uses: anchore/sbom-action@v0
@@ -45,54 +55,30 @@ jobs:
           format: cyclonedx-json
           output-file: ${{ env.CONTEXT }}/reports/sbom.cdx.json
 
-      - name: Trivy image scan (gate + SARIF)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: ${{ env.IMAGE }}
-          format: sarif
-          output: ${{ env.CONTEXT }}/reports/trivy.sarif
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: '0'
-
-      - name: Upload SARIF to GitHub Security
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ env.CONTEXT }}/reports/trivy.sarif
-
-      - name: Upload security artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports
-          path: ${{ env.CONTEXT }}/reports/
-          retention-days: 7
-
       - name: Push image
-        run: |
-          docker push "$IMAGE"
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.CONTEXT }}/Dockerfile-hardened
+          tags: ${{ env.IMAGE }}
+          push: true
+          cache-from: type=gha,scope=sa-test
+          cache-to: type=gha,mode=max,scope=sa-test
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
         with:
           version: 'latest'
 
-      - name: Decode kubeconfig from secret
-        working-directory: ${{ env.CONTEXT }}
-        run: |
-          set -euo pipefail
-          KCONF="$RUNNER_TEMP/kubeconfig"
-          echo "${KUBECONFIG_B64}" | base64 -d > "$KCONF"
-          chmod 600 "$KCONF"
-          KUBECONFIG="$KCONF" kubectl config use-context minikube
-        env:
-          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+      - name: Create KinD cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: ci-cluster
+          wait: 120s
 
       - name: Deploy manifests
         working-directory: ${{ env.CONTEXT }}
         run: |
-          export KUBECONFIG="$RUNNER_TEMP/kubeconfig"
           kubectl get ns sa-test >/dev/null 2>&1 || kubectl create ns sa-test
           kubectl -n sa-test apply -f k8s/deployment.yaml
           kubectl -n sa-test apply -f k8s/service.yaml
