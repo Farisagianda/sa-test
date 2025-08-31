@@ -1,0 +1,45 @@
+# VCS / tooling
+.git
+.github
+.idea
+.vscode
+*.iml
+
+# OS junk
+.DS_Store
+
+# Python build & caches
+__pycache__/
+*.py[cod]
+*.pyo
+.eggs/
+*.egg-info/
+dist/
+build/
+pip-wheel-metadata/
+.venv/
+venv/
+.tox/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+coverage.*
+
+# R junk
+.Rproj.user/
+.Rhistory
+.RData
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Logs & reports
+*.log
+reports/
+
+# K8s manifests aren’t needed in the image
+k8s/
+
+# Local secrets
+kubeconfig-*.b64
