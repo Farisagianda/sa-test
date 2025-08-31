@@ -24,7 +24,8 @@ jobs:
 
       - name: Build for scan
         run: |
-          docker buildx build --load -f question1/Dockerfile-hardened \
+          cd question1
+          docker buildx build --load -f Dockerfile-hardened \
             -t docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1-hardened .
 
       - name: Trivy image scan
