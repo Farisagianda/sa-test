@@ -28,14 +28,39 @@ jobs:
           docker buildx build --load -f Dockerfile-hardened \
             -t docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1-hardened .
 
-      - name: Trivy image scan
+      - name: Make reports dir
+        run: mkdir -p reports
+
+      - name: Generate SBOM (Syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1-hardened
+          format: cyclonedx-json
+          output-file: reports/sbom.cdx.json
+
+      - name: Trivy image scan (gate + SARIF)
         uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1-hardened
-          vuln-type: 'os,library'
+          format: 'sarif'
+          output: 'reports/trivy.sarif'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
           exit-code: '1'
+
+      - name: Upload SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports/trivy.sarif
+
+      - name: Upload security artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: reports/
+          retention-days: 7
 
       - name: Push image
         run: |
