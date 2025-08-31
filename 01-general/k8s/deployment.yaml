@@ -22,7 +22,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: toolbox
-          image: docker.io/farisagianda/sa-test:v1-hardened
+          image: docker.io/farisagianda/sa-test:v1
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args:
