@@ -38,10 +38,14 @@ jobs:
           cache-from: type=gha,scope=sa-test
           cache-to: type=gha,mode=max,scope=sa-test
 
+      - name: Make reports dir
+        run: mkdir -p ${{ env.CONTEXT }}/reports
+
       - name: Trivy scan (gate + SARIF)
         uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ env.IMAGE }}
+          scanners: vuln
           format: sarif
           output: ${{ env.CONTEXT }}/reports/trivy.sarif
           severity: CRITICAL,HIGH
@@ -54,6 +58,14 @@ jobs:
           image: ${{ env.IMAGE }}
           format: cyclonedx-json
           output-file: ${{ env.CONTEXT }}/reports/sbom.cdx.json
+
+      - name: Upload security artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: ${{ env.CONTEXT }}/reports/
+          retention-days: 7
 
       - name: Push image
         uses: docker/build-push-action@v6
@@ -75,6 +87,15 @@ jobs:
         with:
           cluster_name: ci-cluster
           wait: 120s
+          config: |
+            kind: Cluster
+            apiVersion: kind.x-k8s.io/v1alpha4
+            nodes:
+            - role: control-plane
+              extraPortMappings:
+              - containerPort: 30080
+                hostPort: 8080
+                protocol: TCP
 
       - name: Deploy manifests
         working-directory: ${{ env.CONTEXT }}
@@ -83,3 +104,14 @@ jobs:
           kubectl -n sa-test apply -f k8s/deployment.yaml
           kubectl -n sa-test apply -f k8s/service.yaml
           kubectl -n sa-test rollout status deploy/sa-test
+
+      - name: Curl service
+        run: |
+          for i in {1..10}; do
+            if curl -fsS http://127.0.0.1:8080 | head -n 20; then exit 0; fi
+            sleep 2
+          done
+          echo "Service not responding in time" >&2
+          kubectl -n sa-test get pods -o wide
+          kubectl -n sa-test describe pod -l app=sa-test
+          exit 1
