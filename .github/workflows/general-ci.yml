@@ -14,7 +14,7 @@ jobs:
 
     env:
       CONTEXT: 01-general
-      IMAGE: docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1-hardened
+      IMAGE: docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1
 
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.CONTEXT }}
-          file: ${{ env.CONTEXT }}/Dockerfile-hardened
+          file: ${{ env.CONTEXT }}/Dockerfile
           tags: ${{ env.IMAGE }}
           load: true
           cache-from: type=gha,scope=sa-test
@@ -71,7 +71,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.CONTEXT }}
-          file: ${{ env.CONTEXT }}/Dockerfile-hardened
+          file: ${{ env.CONTEXT }}/Dockerfile
           tags: ${{ env.IMAGE }}
           push: true
           cache-from: type=gha,scope=sa-test
