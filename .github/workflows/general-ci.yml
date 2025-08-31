@@ -87,15 +87,7 @@ jobs:
         with:
           cluster_name: ci-cluster
           wait: 120s
-          config: |
-            kind: Cluster
-            apiVersion: kind.x-k8s.io/v1alpha4
-            nodes:
-            - role: control-plane
-              extraPortMappings:
-              - containerPort: 30080
-                hostPort: 8080
-                protocol: TCP
+          config: 01-general/k8s/kind-config.yaml
 
       - name: Deploy manifests
         working-directory: ${{ env.CONTEXT }}
