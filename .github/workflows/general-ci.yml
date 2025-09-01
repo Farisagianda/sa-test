@@ -22,6 +22,11 @@ jobs:
       - name: Buildx setup
         uses: docker/setup-buildx-action@v3
 
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -33,10 +38,11 @@ jobs:
         with:
           context: ${{ env.CONTEXT }}
           file: ${{ env.CONTEXT }}/Dockerfile
-          tags: ${{ env.IMAGE }}
+          tags: ${{ env.IMAGE }}-ci-scan
           load: true
           cache-from: type=gha,scope=sa-test
           cache-to: type=gha,mode=max,scope=sa-test
+          platforms: linux/amd64
 
       - name: Make reports dir
         run: mkdir -p ${{ env.CONTEXT }}/reports
@@ -44,7 +50,7 @@ jobs:
       - name: Trivy scan (gate + SARIF)
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: ${{ env.IMAGE }}
+          image-ref: ${{ env.IMAGE }}-ci-scan
           scanners: vuln
           format: sarif
           output: ${{ env.CONTEXT }}/reports/trivy.sarif
@@ -55,7 +61,7 @@ jobs:
       - name: Generate SBOM (Syft)
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ env.IMAGE }}
+          image: ${{ env.IMAGE }}-ci-scan
           format: cyclonedx-json
           output-file: ${{ env.CONTEXT }}/reports/sbom.cdx.json
 
@@ -67,13 +73,14 @@ jobs:
           path: ${{ env.CONTEXT }}/reports/
           retention-days: 7
 
-      - name: Push image
+      - name: Push image (multi-arch)
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.CONTEXT }}
           file: ${{ env.CONTEXT }}/Dockerfile
           tags: ${{ env.IMAGE }}
           push: true
+          platforms: linux/amd64,linux/arm64
           cache-from: type=gha,scope=sa-test
           cache-to: type=gha,mode=max,scope=sa-test
 
