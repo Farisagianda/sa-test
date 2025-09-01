@@ -14,7 +14,7 @@ jobs:
 
     env:
       CONTEXT: 01-general
-      IMAGE: docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1-amd64
+      IMAGE: docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1
 
     steps:
       - uses: actions/checkout@v4
