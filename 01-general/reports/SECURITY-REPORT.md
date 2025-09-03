@@ -30,7 +30,7 @@ grype sbom:reports/sbom.cdx.json -o table > reports/grype.txt
 grype sbom:reports/sbom.cdx.json -o json  > reports/grype.json
 ```
 
-> Note: Tables below reflect the **Critical/High** items you provided from your most recent runs. See `reports/*` in CI artifacts for full raw output.
+> Note: Tables below reflect the Critical/High items observed in the most recent scans. See reports/* in CI artifacts for the full raw output.
 
 ---
 
