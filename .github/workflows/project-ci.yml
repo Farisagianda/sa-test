@@ -7,16 +7,18 @@ on:
       - '.github/workflows/project-ci.yml'
 
 env:
-  CONTEXT: 02-project
+  CONTEXT: 02-project/app
   IMAGE_REPO: docker.io/${{ secrets.DOCKERHUB_USER }}/sa-dev-envs-api
   IMAGE_TAG: v1
+  CACHE_PREFIX: sa-dev-envs-api
 
 jobs:
   build:
     strategy:
       matrix:
         platform: [linux/amd64, linux/arm64]
-    runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ startsWith(matrix.platform, 'linux/arm64') && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -27,39 +29,63 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Set ARCH var
-        run: echo "ARCH=${{ startsWith(matrix.platform, 'linux/arm64') && 'arm64' || 'amd64' }}" >> $GITHUB_ENV
-
-      - name: Build & push (${{ env.ARCH }})
+      - name: Build & push (${{ matrix.platform }})
         uses: docker/build-push-action@v6
         with:
-          context: ${{ env.CONTEXT }}/app
-          file: ${{ env.CONTEXT }}/app/Dockerfile
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.CONTEXT }}/Dockerfile
           platforms: ${{ matrix.platform }}
-          tags: ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-${{ env.ARCH }}
+          tags: ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-${{ startsWith(matrix.platform, 'linux/arm64') && 'arm64' || 'amd64' }}
           push: true
-          cache-from: type=gha,scope=sa-dev-envs-api-${{ env.ARCH }}
-          cache-to:   type=gha,scope=sa-dev-envs-api-${{ env.ARCH }},mode=max
+          cache-from: type=gha,scope=${{ env.CACHE_PREFIX }}-${{ matrix.platform }}
+          cache-to:   type=gha,scope=${{ env.CACHE_PREFIX }}-${{ matrix.platform }},mode=max
 
-  deploy:
+  manifest:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create multi-arch manifest tag (:v1)
+        run: |
+          docker buildx imagetools create \
+            -t ${IMAGE_REPO}:${IMAGE_TAG} \
+            ${IMAGE_REPO}:${IMAGE_TAG}-amd64 \
+            ${IMAGE_REPO}:${IMAGE_TAG}-arm64
+
+  deploy-smoke:
+    needs: manifest
+    runs-on: ubuntu-latest
+
+    steps:
       - uses: actions/checkout@v4
-      - uses: azure/setup-kubectl@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
         with:
           version: 'latest'
-      - uses: helm/kind-action@v1
+
+      - name: Create KinD cluster
+        uses: helm/kind-action@v1
         with:
           cluster_name: project-ci
           wait: 120s
-      - uses: azure/setup-helm@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
         with:
           version: v3.14.4
 
-      # Use amd64 image because KinD on ubuntu-latest is amd64
-      - name: Helm deploy dev-envs chart
+      - name: Helm deploy dev-envs chart (use amd64 tag for KinD)
         working-directory: 02-project
+        env:
+          IMAGE_REPO: ${{ env.IMAGE_REPO }}
+          IMAGE_TAG:  ${{ env.IMAGE_TAG }}
         run: |
           helm upgrade --install dev-envs ./charts/dev-envs \
             -n dev --create-namespace \
