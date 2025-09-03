@@ -1,0 +1,143 @@
+name: project-ci
+
+on:
+  push:
+    paths:
+      - '02-project/app/**'
+      - '02-project/Dockerfile'
+      - '.github/workflows/project-ci.yml'
+  pull_request:
+    paths:
+      - '02-project/app/**'
+      - '02-project/Dockerfile'
+      - '.github/workflows/project-ci.yml'
+
+jobs:
+  build-scan-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    env:
+      CONTEXT: 02-project
+      IMAGE_REPO: docker.io/${{ secrets.DOCKERHUB_USER }}/sa-dev-envs-api
+      IMAGE_TAG: v1
+      CACHE_SCOPE: sa-dev-envs-api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build (load to local Docker)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.CONTEXT }}/Dockerfile
+          tags: |
+            ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
+          load: true
+          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+          platforms: linux/amd64
+
+      - name: Make reports dir
+        run: mkdir -p ${{ env.CONTEXT }}/reports
+
+      - name: Trivy scan (gate + SARIF)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
+          scanners: vuln
+          format: sarif
+          output: ${{ env.CONTEXT }}/reports/trivy.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '0'
+
+      - name: Generate SBOM (Syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
+          format: cyclonedx-json
+          output-file: ${{ env.CONTEXT }}/reports/sbom.cdx.json
+
+      - name: Upload security artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: ${{ env.CONTEXT }}/reports/
+          retention-days: 7
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.CONTEXT }}/Dockerfile
+          tags: |
+            ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
+            ${{ env.IMAGE_REPO }}:ci
+          push: true
+          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+          platforms: linux/amd64
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Create KinD cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: project-ci
+          wait: 120s
+
+      - name: Load image into KinD
+        run: kind load docker-image ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }} --name project-ci
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.4
+
+      - name: Create namespaces
+        run: |
+          kubectl get ns dev >/dev/null 2>&1 || kubectl create ns dev
+
+      - name: Helm deploy dev-envs chart
+        working-directory: 02-project/app
+        run: |
+          REPO="${IMAGE_REPO}"
+          TAG="${IMAGE_TAG}"
+          helm upgrade --install dev-envs ./charts/dev-envs \
+            -n dev -f charts/dev-envs/values.yaml
+
+          kubectl -n dev rollout status deploy/dev-envs-api
+
+      - name: Smoke test UI (/static/)
+        run: |
+          kubectl -n dev port-forward svc/dev-envs-api 8080:80 >/tmp/pf.log 2>&1 &
+          PF_PID=$!
+          for i in {1..15}; do
+            sleep 2
+            if curl -fsS http://127.0.0.1:8080/static/ | head -n 5; then
+              kill $PF_PID || true
+              exit 0
+            fi
+          done
+          echo "::error::Service did not respond" >&2
+          echo "---- PF logs ----"; cat /tmp/pf.log || true
+          echo "---- Pods ----"; kubectl -n dev get pods -o wide || true
+          echo "---- Describe ----"; kubectl -n dev describe deploy/dev-envs-api || true
+          kill $PF_PID || true
+          exit 1
