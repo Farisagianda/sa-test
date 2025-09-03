@@ -13,7 +13,7 @@ router = APIRouter()
 @router.post("/envs")
 async def create_env(spec: EnvSpec, bg: BackgroundTasks):
     log_event("create", spec.team, spec.name, "submitted", {"owner": spec.owner, "pool": spec.pool})
-    from .k8s import apply_k8s_objects
+    from k8s import apply_k8s_objects
     bg.add_task(apply_k8s_objects, spec)
     return {"status": "submitted", "name": spec.name}
 
