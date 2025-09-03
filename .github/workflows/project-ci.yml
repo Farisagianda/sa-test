@@ -78,7 +78,7 @@ jobs:
           kubectl -n dev port-forward svc/dev-envs-api 8080:8080 >/tmp/pf.log 2>&1 &
           PF_PID=$!
           for i in {1..15}; do
-            sleep 2
+            sleep 7
             if curl -fsS http://127.0.0.1:8080/static/ | head -n 5; then
               kill $PF_PID || true
               exit 0
