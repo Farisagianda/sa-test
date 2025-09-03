@@ -76,7 +76,7 @@ jobs:
           kubectl get ns dev >/dev/null 2>&1 || kubectl create ns dev
 
       - name: Helm deploy dev-envs chart
-        working-directory: 02-project/app
+        working-directory: 02-project
         run: |
           helm upgrade --install dev-envs ./charts/dev-envs \
             -n dev \
