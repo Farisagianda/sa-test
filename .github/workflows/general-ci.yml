@@ -5,6 +5,15 @@ on:
       - '01-general/**'
       - '.github/workflows/general-ci.yml'
 
+concurrency:
+  group: general-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CONTEXT: 01-general
+  IMAGE_REPO: docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test
+  IMAGE_TAG: v1
+
 jobs:
   build:
     strategy:
@@ -15,16 +24,11 @@ jobs:
       contents: read
       security-events: write
     env:
-      CONTEXT: 01-general
-      IMAGE_REPO: docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test
-      IMAGE_TAG: v1
       ARCH_TAG: ${{ startsWith(matrix.platform, 'linux/arm64') && 'arm64' || 'amd64' }}
       CACHE_SCOPE: sa-test-${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -32,16 +36,19 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & push (${{ matrix.platform }})
+      - name: Build (load locally) - ${{ matrix.platform }}
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.CONTEXT }}
           file: ${{ env.CONTEXT }}/Dockerfile
           platforms: ${{ matrix.platform }}
-          push: true
+          load: true
           tags: ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-${{ env.ARCH_TAG }}
           cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
-          cache-to:   type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+
+      - name: Ensure reports dir
+        run: mkdir -p ${{ env.CONTEXT }}/reports
 
       - name: Trivy scan (SARIF)
         uses: aquasecurity/trivy-action@0.28.0
@@ -69,49 +76,56 @@ jobs:
           path: ${{ env.CONTEXT }}/reports/
           retention-days: 7
 
+      - name: Push image - ${{ matrix.platform }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.CONTEXT }}/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-${{ env.ARCH_TAG }}
+          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+
+  # create multi-arch manifest v1
   manifest:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: docker/setup-buildx-action@v3
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Create multi-arch manifest
+      - name: Create multi-arch manifest (:v1)
         run: |
           docker buildx imagetools create \
-            -t docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1 \
-            docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1-amd64 \
-            docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1-arm64
-          docker buildx imagetools inspect docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1
+            -t ${IMAGE_REPO}:${IMAGE_TAG} \
+            ${IMAGE_REPO}:${IMAGE_TAG}-amd64 \
+            ${IMAGE_REPO}:${IMAGE_TAG}-arm64
+          docker buildx imagetools inspect ${IMAGE_REPO}:${IMAGE_TAG}
 
   deploy:
-    needs: [build, manifest]
+    needs: [manifest]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
+      - uses: azure/setup-kubectl@v4
         with:
           version: 'latest'
-
-      - name: Create KinD cluster
-        uses: helm/kind-action@v1
+      - uses: helm/kind-action@v1
         with:
           cluster_name: ci-cluster
           wait: 120s
           config: 01-general/k8s/kind-config.yaml
 
-      - name: Deploy manifests (use amd64 tag)
+      - name: Deploy manifests (with amd64 tag)
         working-directory: 01-general
         env:
-          IMAGE: docker.io/${{ secrets.DOCKERHUB_USER }}/sa-test:v1-amd64
+          IMAGE: ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-amd64
         run: |
           kubectl get ns sa-test >/dev/null 2>&1 || kubectl create ns sa-test
-          # patch image if your manifest doesn’t template it
           sed "s#IMAGE_PLACEHOLDER#${IMAGE}#g" k8s/deployment.yaml | kubectl -n sa-test apply -f -
           kubectl -n sa-test apply -f k8s/service.yaml
           kubectl -n sa-test rollout status deploy/sa-test
@@ -122,7 +136,7 @@ jobs:
             if curl -fsS http://127.0.0.1:8080 | head -n 20; then exit 0; fi
             sleep 2
           done
-          echo "Service not responding in time" >&2
+          echo "::error::Service did not respond" >&2
           kubectl -n sa-test get pods -o wide || true
           kubectl -n sa-test describe pod -l app=sa-test || true
           exit 1
