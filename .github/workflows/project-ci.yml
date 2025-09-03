@@ -76,6 +76,7 @@ jobs:
         run: |
           helm upgrade --install dev-envs ./charts/dev-envs \
             -n dev \
+            --create-namespace \
             -f charts/dev-envs/values.yaml \
             --set image.repository=${IMAGE_REPO} \
             --set image.tag=${IMAGE_TAG}-amd64
