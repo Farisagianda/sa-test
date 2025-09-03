@@ -43,18 +43,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
           platforms: linux/amd64
 
-      - name: Build & push (arm64)
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ env.CONTEXT }}/app
-          file: ${{ env.CONTEXT }}/app/Dockerfile
-          tags: |
-            ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-arm64
-          push: true
-          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
-          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
-          platforms: linux/arm65
-
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
         with:
