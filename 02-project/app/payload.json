@@ -1,0 +1,12 @@
+{
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "EnvIdleCPU",
+        "namespace": "dev-faris",
+        "env": "env1"
+      }
+    }
+  ]
+}
