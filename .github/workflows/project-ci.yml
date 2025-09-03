@@ -39,8 +39,8 @@ jobs:
           tags: |
             ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-amd64
           push: true
-          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
-          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}-amd64
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}-amd64
           platforms: linux/amd64
 
       - name: Build & push (arm64)
@@ -51,8 +51,8 @@ jobs:
           tags: |
             ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-arm64
           push: true
-          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
-          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}-arm64
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}-arm64
           platforms: linux/arm64
 
       - name: Setup kubectl
@@ -85,7 +85,7 @@ jobs:
 
       - name: Smoke test UI (/static/)
         run: |
-          kubectl -n dev port-forward svc/dev-envs-api 8080:80 >/tmp/pf.log 2>&1 &
+          kubectl -n dev port-forward svc/dev-envs-api 8080:8080 >/tmp/pf.log 2>&1 &
           PF_PID=$!
           for i in {1..15}; do
             sleep 2

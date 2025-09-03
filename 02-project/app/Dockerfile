@@ -5,13 +5,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# copy lock/requirements first so the layer can be cached
-COPY requirements.txt /tmp/requirements.txt
-
-# use buildx cache mount so pip can reuse wheel downloads between builds
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip \
- && pip install --no-warn-script-location -r /tmp/requirements.txt
+# install deps first for better layer caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # copy only the runtime code (exclude files/folders via .dockerignore)
 COPY . .
