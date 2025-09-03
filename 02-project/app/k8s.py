@@ -1,9 +1,9 @@
 from typing import Optional, List, Tuple
 from kubernetes import client, config
 from kubernetes.client import ApiException, CustomObjectsApi
-from .config import settings
-from .models import EnvSpec
-from .events import log_event
+from config import settings
+from models import EnvSpec
+from events import log_event
 
 def init_kube():
     try:

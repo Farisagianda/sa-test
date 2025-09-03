@@ -2,10 +2,10 @@ from fastapi import APIRouter, BackgroundTasks, Request, Query
 from typing import Optional, List
 from kubernetes import client
 from kubernetes.client import ApiException
-from .models import EnvSpec
-from .events import log_event, tail as events_tail
-from .k8s import get_pod_metrics
-from .config import settings
+from models import EnvSpec
+from events import log_event, tail as events_tail
+from k8s import get_pod_metrics
+from config import settings
 import json
 
 router = APIRouter()

@@ -2,7 +2,7 @@ import os, json
 from collections import deque
 from datetime import datetime, timezone
 from typing import Optional
-from .config import settings
+from config import settings
 
 EVENT_LOG = deque(maxlen=settings.event_log_max)
 

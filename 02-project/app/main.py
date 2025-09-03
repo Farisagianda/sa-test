@@ -2,10 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
-from .config import settings
-from .events import seed_from_disk
-from .k8s import init_kube
-from .api import router as api_router
+from config import settings
+from events import seed_from_disk
+from k8s import init_kube
+from api import router as api_router
 
 app = FastAPI(title="Dev Envs API", version="0.1.0")
 app.add_middleware(
