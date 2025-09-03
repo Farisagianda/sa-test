@@ -4,3 +4,4 @@ reports/*
 build_cold.log
 kubeconfig*
 env1
+__pycache__
