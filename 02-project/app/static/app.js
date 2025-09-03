@@ -58,7 +58,7 @@ if (f) {
       byId('pool').value = 'cpu-small';
       byId('priority').value = 'dev-low';
       byId('owner').value = 'faris';
-      byId('base_image').value = 'docker.io/farisagianda/sa-test:v1-arm64';
+      byId('base_image').value = 'docker.io/farisagianda/sa-test:v1';
       byId('packages').value = 'numpy,pandas';
       byId('cpu').value = '500m';
       byId('memory').value = '1Gi';
