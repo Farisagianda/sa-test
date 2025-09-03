@@ -6,7 +6,7 @@ on:
       - '.github/workflows/general-ci.yml'
 
 jobs:
-  build-deploy:
+  build-scan-deploy-01-general:
     runs-on: ubuntu-latest
     permissions:
       contents: read

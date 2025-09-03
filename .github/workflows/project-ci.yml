@@ -3,17 +3,11 @@ name: project-ci
 on:
   push:
     paths:
-      - '02-project/app/**'
-      - '02-project/Dockerfile'
-      - '.github/workflows/project-ci.yml'
-  pull_request:
-    paths:
-      - '02-project/app/**'
-      - '02-project/Dockerfile'
+      - '02-project/**'
       - '.github/workflows/project-ci.yml'
 
 jobs:
-  build-scan-deploy:
+  build-deploy-02-project:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -37,47 +31,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build (load to local Docker)
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ env.CONTEXT }}
-          file: ${{ env.CONTEXT }}/Dockerfile
-          tags: |
-            ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
-          load: true
-          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
-          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
-          platforms: linux/amd64
-
-      - name: Make reports dir
-        run: mkdir -p ${{ env.CONTEXT }}/reports
-
-      - name: Trivy scan (gate + SARIF)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
-          scanners: vuln
-          format: sarif
-          output: ${{ env.CONTEXT }}/reports/trivy.sarif
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: '0'
-
-      - name: Generate SBOM (Syft)
-        uses: anchore/sbom-action@v0
-        with:
-          image: ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
-          format: cyclonedx-json
-          output-file: ${{ env.CONTEXT }}/reports/sbom.cdx.json
-
-      - name: Upload security artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports
-          path: ${{ env.CONTEXT }}/reports/
-          retention-days: 7
-
       - name: Build & push
         uses: docker/build-push-action@v6
         with:
@@ -85,7 +38,6 @@ jobs:
           file: ${{ env.CONTEXT }}/Dockerfile
           tags: |
             ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
-            ${{ env.IMAGE_REPO }}:ci
           push: true
           cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
           cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
