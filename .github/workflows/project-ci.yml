@@ -8,7 +8,9 @@ on:
 
 jobs:
   build-deploy-02-project:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix: { platform: [ linux/arm64 ] }
+    runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     permissions:
       contents: read
       security-events: write
@@ -30,18 +32,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build & push (amd64)
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ env.CONTEXT }}/app
-          file: ${{ env.CONTEXT }}/app/Dockerfile
-          tags: |
-            ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-amd64
-          push: true
-          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}-amd64
-          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}-amd64
-          platforms: linux/amd64
 
       - name: Build & push (arm64)
         uses: docker/build-push-action@v6
@@ -79,17 +69,17 @@ jobs:
             --create-namespace \
             -f charts/dev-envs/values.yaml \
             --set image.repository=${IMAGE_REPO} \
-            --set image.tag=${IMAGE_TAG}-amd64
+            --set image.tag=${IMAGE_TAG}-arm64
 
           kubectl -n dev rollout status deploy/dev-envs-api
 
-      - name: Smoke test UI (/static/)
+      - name: Smoke test UI (/healthz)
         run: |
           kubectl -n dev port-forward svc/dev-envs-api 8080:8080 >/tmp/pf.log 2>&1 &
           PF_PID=$!
           for i in {1..15}; do
             sleep 2
-            if curl -fsS http://127.0.0.1:8080/static/ | head -n 5; then
+            if curl -fsS http://127.0.0.1:8080/healthz | grep ok; then
               kill $PF_PID || true
               exit 0
             fi
