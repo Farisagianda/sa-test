@@ -35,7 +35,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.CONTEXT }}
-          file: ${{ env.CONTEXT }}/Dockerfile
+          file: ${{ env.CONTEXT }}/app/Dockerfile
           tags: |
             ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
           push: true
