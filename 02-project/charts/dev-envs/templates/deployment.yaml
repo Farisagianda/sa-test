@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dev-envs-api
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "dev-envs.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "dev-envs.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "dev-envs.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: dev-envs-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [ { containerPort: 8080, name: http } ]
+          env:
+            - name: AUDIT_PATH
+              value: {{ .Values.audit.path | quote }}
+            - name: EVENT_LOG_MAX
+              value: {{ .Values.env.eventLogMax | int | quote }}
+            - name: AUDIT_MAX_BYTES
+              value: {{ .Values.env.auditMaxBytes | int | quote }}
+            - name: SERVICE_TYPE
+              value: {{ .Values.service.type | quote }}
+            - name: HPA_ENABLED
+              value: {{ .Values.env.hpaEnabled | quote }}
+            - name: HPA_MIN
+              value: {{ .Values.env.hpaMin | quote }}
+            - name: HPA_MAX
+              value: {{ .Values.env.hpaMax | quote }}
+            - name: HPA_CPU_UTIL
+              value: {{ .Values.env.hpaCpuUtil | quote }}
+            - name: HPA_MEM_UTIL
+              value: {{ .Values.env.hpaMemUtil | quote }}
+            - name: HPA_SD_STAB
+              value: {{ .Values.env.hpaSdStab | quote }}
+          volumeMounts:
+          {{- if .Values.audit.pvc.enabled }}
+            - name: audit-data
+              mountPath: /data
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+      {{- if .Values.audit.pvc.enabled }}
+        - name: audit-data
+          persistentVolumeClaim:
+            claimName: dev-env-audit-pvc
+      {{- end }}

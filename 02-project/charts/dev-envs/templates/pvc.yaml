@@ -1,0 +1,15 @@
+{{- if .Values.audit.pvc.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dev-env-audit-pvc
+  namespace: {{ .Values.namespace }}
+spec:
+  accessModes: {{- toYaml .Values.audit.pvc.accessModes | nindent 2 }}
+  resources:
+    requests:
+      storage: {{ .Values.audit.pvc.size }}
+  {{- if .Values.audit.pvc.storageClass }}
+  storageClassName: {{ .Values.audit.pvc.storageClass }}
+  {{- end }}
+{{- end }}

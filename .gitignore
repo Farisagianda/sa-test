@@ -3,3 +3,4 @@ reports/*
 !reports/SECURITY-REPORT.md
 build_cold.log
 kubeconfig*
+env1

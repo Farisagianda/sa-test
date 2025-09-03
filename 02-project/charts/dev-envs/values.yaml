@@ -1,0 +1,63 @@
+namespace: dev
+
+image:
+  repository: docker.io/farisagianda/sa-dev-envs-api
+  tag: v1
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits: {}
+
+audit:
+  enabled: true
+  path: /data/audit.jsonl
+  pvc:
+    enabled: true
+    size: 1Gi
+    accessModes: [ "ReadWriteOnce" ]
+    storageClass: ""
+
+env:
+  eventLogMax: 200
+  auditMaxBytes: 5242880
+  hpaEnabled: "true"
+  hpaMin: "1"
+  hpaMax: "3"
+  hpaCpuUtil: "70"
+  hpaMemUtil: "80"
+  hpaSdStab: "60"
+
+rbac:
+  create: true
+
+pdb:
+  create: true
+  minAvailable: 1
+
+priorityClasses:
+  - name: interactive-high
+    value: 100000
+    preemptionPolicy: PreemptLowerPriority
+    globalDefault: false
+    description: Interactive dev sessions
+  - name: batch-medium
+    value: 50000
+    preemptionPolicy: PreemptLowerPriority
+    globalDefault: false
+    description: Batch jobs; mid-tier
+  - name: dev-low
+    value: 1000
+    preemptionPolicy: Never
+    globalDefault: false
+    description: Low-priority background envs
+
+prometheusRule:
+  enabled: true
+  namespace: monitoring

@@ -1,0 +1,90 @@
+{{- if and .Values.prometheusRule.enabled
+          ( .Capabilities.APIVersions.Has "monitoring.coreos.com/v1/PrometheusRule" ) }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: envs-rules
+  namespace: {{ .Values.prometheusRule.namespace }}
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: envs-recording
+      interval: 60s
+      rules:
+        - record: env:cpu_used_cores:5m
+          expr: |
+            sum by (namespace, app) (
+              rate(container_cpu_usage_seconds_total{image!=""}[5m])
+            * on (namespace, pod) group_left(app)
+              label_replace(
+                kube_pod_labels{label_app!=""},
+                "app","$1","label_app","(.*)"
+              )
+            )
+
+        - record: env:cpu_requested_cores
+          expr: |
+            sum by (namespace, app) (
+              kube_pod_container_resource_requests{resource="cpu"}
+            * on (namespace, pod) group_left(app)
+              label_replace(
+                kube_pod_labels{label_app!=""},
+                "app","$1","label_app","(.*)"
+              )
+            )
+
+        - record: env:cpu_utilization:ratio
+          expr: |
+            env:cpu_used_cores:5m
+            /
+            clamp_min(env:cpu_requested_cores, 0.001)
+
+        - record: env:mem_used_bytes
+          expr: |
+            sum by (namespace, app) (
+              container_memory_working_set_bytes
+            * on (namespace, pod) group_left(app)
+              label_replace(
+                kube_pod_labels{label_app!=""},
+                "app","$1","label_app","(.*)"
+              )
+            )
+
+        - record: env:mem_requested_bytes
+          expr: |
+            sum by (namespace, app) (
+              kube_pod_container_resource_requests{resource="memory"}
+            * on (namespace, pod) group_left(app)
+              label_replace(
+                kube_pod_labels{label_app!=""},
+                "app","$1","label_app","(.*)"
+              )
+            )
+
+    - name: envs-alerts
+      rules:
+        - alert: EnvIdleCPU
+          expr: env:cpu_utilization:ratio < 0.10
+          for: 30m
+          labels:
+            severity: warning
+            env: {{ "{{ $labels.app }}" | quote }}
+          annotations:
+            summary: Environment has low CPU utilization
+            description: >
+              App {{ "{{ $labels.app }}" }} in {{ "{{ $labels.namespace }}" }}
+              under 10% of requested CPU for 30m.
+
+        - alert: EnvHighMemVsRequest
+          expr: env:mem_used_bytes > env:mem_requested_bytes
+          for: 5m
+          labels:
+            severity: warning
+            env: {{ "{{ $labels.app }}" | quote }}
+          annotations:
+            summary: Environment memory usage exceeds request
+            description: >
+              App {{ "{{ $labels.app }}" }} in {{ "{{ $labels.namespace }}" }}
+              using more memory than requested for 5m.
+{{- end }}

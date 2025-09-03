@@ -1,0 +1,21 @@
+alertmanager:
+  config:
+    global:
+      resolve_timeout: 5m
+
+    route:
+      group_by: ["alertname","namespace"]
+      receiver: scale-webhook
+
+    receivers:
+      # Primary: send alerts to the app (used in the test)
+      - name: scale-webhook
+        webhook_configs:
+          - url: "http://dev-envs-api.dev.svc.cluster.local/alerts"
+
+      # Optional: enable Slack by uncommenting and set api_url here
+      # - name: slack
+      #   slack_configs:
+      #     - api_url: "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+      #       channel: "#alerts"
+      #       send_resolved: true

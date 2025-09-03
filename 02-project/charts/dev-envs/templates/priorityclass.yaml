@@ -1,0 +1,13 @@
+{{- if .Values.priorityClasses }}
+{{- range $pc := .Values.priorityClasses }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ $pc.name }}
+value: {{ $pc.value }}
+preemptionPolicy: {{ $pc.preemptionPolicy | default "PreemptLowerPriority" }}
+globalDefault: {{ $pc.globalDefault | default false }}
+description: {{ $pc.description | quote }}
+---
+{{- end }}
+{{- end }}
