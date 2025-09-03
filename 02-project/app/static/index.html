@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Dev Env Launcher</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      body { font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial; padding: 24px; max-width: 980px; margin: 0 auto; }
+      h1 { margin: 0 0 12px; }
+      .tabs { display: flex; gap: 8px; margin: 12px 0 20px; }
+      .tab { padding: 8px 12px; border-radius: 8px; border: 1px solid #e5e7eb; background: #f9fafb; cursor: pointer; }
+      .tab.active { background: #111827; color: #fff; border-color: #111827; }
+      form { display: grid; gap: 12px; grid-template-columns: 1fr 2fr; align-items: center; }
+      label { font-weight: 600; }
+      input, select, textarea { padding: 8px; border: 1px solid #ddd; border-radius: 8px; }
+      textarea { min-height: 70px; }
+      .row { grid-column: 1 / -1; display: flex; gap: 8px; }
+      .btn { padding: 10px 14px; border-radius: 10px; border: none; background: #111827; color: #fff; cursor: pointer; }
+      .btn.secondary { background: #374151; }
+      pre { background: #0b1020; color: #d6e1ff; padding: 14px; border-radius: 10px; overflow: auto; }
+      .muted { color: #6b7280; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; font-variant-numeric: tabular-nums; }
+      .controls { display: flex; gap: 8px; align-items: center; }
+      [hidden] { display: none !important; }
+      #evt td:first-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    </style>
+  </head>
+  <body>
+    <h1>Dev Env Launcher</h1>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="create">Create</button>
+      <button class="tab" data-tab="existing">Existing environments</button>
+    </div>
+
+    <!-- Create tab -->
+    <section id="tab-create">
+      <p class="muted">This posts to <code>/envs</code> on the same host.</p>
+
+      <form id="f">
+        <label for="name">Name</label>
+        <input id="name" name="name" placeholder="env1" required />
+
+        <label for="team">Team (namespace)</label>
+        <input id="team" name="team" placeholder="dev-faris" required />
+
+        <label for="pool">Pool</label>
+        <select id="pool" name="pool">
+          <option value="">(default)</option>
+          <option value="cpu-small">cpu-small</option>
+          <option value="cpu-large">cpu-large</option>
+          <option value="gpu-a100">gpu-a100</option>
+        </select>
+
+        <label for="priority">Priority</label>
+        <select id="priority" name="priority">
+          <option value="">(default)</option>
+          <option value="dev-low">dev-low</option>
+          <option value="batch-medium">batch-medium</option>
+          <option value="interactive-high">interactive-high</option>
+        </select>
+
+        <label for="owner">Owner (email/handle)</label>
+        <input id="owner" name="owner" placeholder="faris" />
+
+        <label for="base_image">Base Image (incl. tag)</label>
+        <input id="base_image" name="base_image" placeholder="docker.io/farisagianda/sa-test:v1-arm64" required />
+
+        <label for="packages">Packages (comma-separated)</label>
+        <textarea id="packages" name="packages" placeholder="numpy,pandas,scipy"></textarea>
+
+        <label for="cpu">CPU</label>
+        <input id="cpu" name="cpu" value="500m" />
+
+        <label for="memory">Memory</label>
+        <input id="memory" name="memory" value="1Gi" />
+
+        <label for="gpu">GPU</label>
+        <input id="gpu" name="gpu" type="number" value="0" min="0" />
+
+        <div class="row">
+          <button class="btn" type="submit">Create</button>
+          <button class="btn secondary" id="fill" type="button">Fill Example</button>
+        </div>
+      </form>
+
+      <h3>Request Preview</h3>
+      <pre id="preview">{}</pre>
+      <h3>Response</h3>
+      <pre id="resp">—</pre>
+    </section>
+
+    <section id="tab-existing" hidden>
+      <div class="controls">
+        <label for="flt-team" class="muted">Team filter:</label>
+        <input id="flt-team" placeholder="(optional) team namespace" />
+        <button id="btn-refresh" class="btn secondary" type="button">Refresh</button>
+        <span id="list-refresh-countdown" class="muted" style="margin-left:8px">refreshing in 10s</span>
+      </div>
+
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>Name</th><th>Team</th><th>Pool</th><th>Priority</th><th>Image</th>
+            <th>CPU Req</th><th>Mem Req</th><th>Ready</th><th>CPU Used</th><th>Mem Used</th><th>Service</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="12" class="muted">No data yet</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Activity</h2>
+      <div class="row" style="justify-content: space-between; width:34%">
+        <button class="btn secondary" id="refresh-events" type="button">Refresh</button>
+        <span class="muted" style="flex:1; text-align:center; line-height:2.6">
+          Last 100 actions —
+          <span id="auto-refresh-countdown">refreshing in 10s</span>
+        </span>
+      </div>
+      <table id="evt" style="width:100%; border-collapse:collapse; margin-top:8px">
+        <thead>
+          <tr>
+            <th style="text-align:left">Time</th>
+            <th style="text-align:left">Action</th>
+            <th style="text-align:left">Namespace</th>
+            <th style="text-align:left">Name</th>
+            <th style="text-align:left">Owner</th>
+            <th style="text-align:left">Pool</th>
+            <th style="text-align:left">Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="7" class="muted">No events yet</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
