@@ -71,10 +71,6 @@ jobs:
         with:
           version: v3.14.4
 
-      - name: Create namespaces
-        run: |
-          kubectl get ns dev >/dev/null 2>&1 || kubectl create ns dev
-
       - name: Helm deploy dev-envs chart
         working-directory: 02-project
         run: |
