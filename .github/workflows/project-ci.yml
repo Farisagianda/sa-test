@@ -31,17 +31,29 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & push
+      - name: Build & push (amd64)
         uses: docker/build-push-action@v6
         with:
-          context: ${{ env.CONTEXT }}
+          context: ${{ env.CONTEXT }}/app
           file: ${{ env.CONTEXT }}/app/Dockerfile
           tags: |
-            ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
+            ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-amd64
           push: true
           cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
           cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
           platforms: linux/amd64
+
+      - name: Build & push (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.CONTEXT }}/app
+          file: ${{ env.CONTEXT }}/app/Dockerfile
+          tags: |
+            ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-arm64
+          push: true
+          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+          platforms: linux/arm65
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
@@ -55,7 +67,7 @@ jobs:
           wait: 120s
 
       - name: Load image into KinD
-        run: kind load docker-image ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }} --name project-ci
+        run: kind load docker-image ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}-amd64 --name project-ci
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -69,10 +81,11 @@ jobs:
       - name: Helm deploy dev-envs chart
         working-directory: 02-project/app
         run: |
-          REPO="${IMAGE_REPO}"
-          TAG="${IMAGE_TAG}"
           helm upgrade --install dev-envs ./charts/dev-envs \
-            -n dev -f charts/dev-envs/values.yaml
+            -n dev \
+            -f charts/dev-envs/values.yaml \
+            --set image.repository=${IMAGE_REPO} \
+            --set image.tag=${IMAGE_TAG}-amd64
 
           kubectl -n dev rollout status deploy/dev-envs-api
 
