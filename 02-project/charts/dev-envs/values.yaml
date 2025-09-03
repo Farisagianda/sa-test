@@ -2,7 +2,7 @@ namespace: dev
 
 image:
   repository: docker.io/farisagianda/sa-dev-envs-api
-  tag: v1-arm64
+  tag: v1
   pullPolicy: Always
 
 service:
